@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "lucidlearn"
+  site-url: "https://frenio.github.io/lucidlearn"
+  description: "A transparent, concise machine learning framework in JAX inspired by `miniai` from `fastai/course22p2` and optimized for efficient TPU usage."
+  repo-branch: main
+  repo-url: "https://github.com/frenio/lucidlearn"

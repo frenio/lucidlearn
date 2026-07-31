@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lucidlearn"
+dynamic = ["version"]
+description = "A transparent, concise machine learning framework in JAX inspired by `miniai` from `fastai/course22p2` and optimized for efficient TPU usage."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Frenio Redeker", email = "f.redeker@gmail.com"}]
+keywords = ['nbdev', 'jax', 'deep-learning', 'tpu']
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = ["jax", "optax", "torch", "torchvision", "torchmetrics", "matplotlib"]
+
+[project.urls]
+Repository = "https://github.com/frenio/lucidlearn"
+Documentation = "https://frenio.github.io/lucidlearn/"
+
+[project.entry-points.nbdev]
+lucidlearn = "lucidlearn._modidx:d"
+
+[tool.setuptools.dynamic]
+version = {attr = "lucidlearn.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["lucidlearn"]
+
+[tool.nbdev]
