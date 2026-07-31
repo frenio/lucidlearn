@@ -1,8 +1,6 @@
 # lucidlearn
 
-## Usage
-
-### Installation
+## Installation
 
 Install latest from the GitHub
 [repository](https://github.com/frenio/lucidlearn):
