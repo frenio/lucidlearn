@@ -31,3 +31,9 @@ version = {attr = "lucidlearn.__version__"}
 include = ["lucidlearn"]
 
 [tool.nbdev]
+repo = "https://github.com/frenio/lucidlearn"
+branch = "main"
+lib_path = "lucidlearn"
+nbs_path = "nbs"
+doc_host = "https://frenio.github.io/lucidlearn"
+doc_dir = "_docs"
