@@ -1,4 +1,4 @@
-"""This module collects lucidlearn's `make_*` functions for assembling deep-learning models. These range from simple building blocks like `make_linear` to specialized architectures like `make_spectrum_encoder`, which embeds peaks from a tandem mass spectrometry (MS/MS) experiment so that, given the right model head, molecular properties or structures can be predicted from the spectra.
+"""This module contains lucidlearn's `make_*` functions for assembling deep-learning models. These range from simple building blocks like `make_linear` to specialized architectures like `make_spectrum_encoder`, which embeds peaks from tandem mass spectrometry (MS/MS) experiments so that, given the right model head, molecular properties or structures can be predicted from the spectra.
 
 Docs: https://frenio.github.io/lucidlearn/nn.html.md"""
 
@@ -8,6 +8,10 @@ Docs: https://frenio.github.io/lucidlearn/nn.html.md"""
 __all__ = ['make_linear', 'make_conv2d', 'make_squeeze', 'make_layernorm1d', 'make_layernorm2d', 'make_sinusoidal_embedding',
            'make_peak_embedding', 'mask_fn', 'make_multi_head_attention', 'make_transformer_block',
            'make_spectrum_encoder', 'make_property_predictor']
+
+# %% ../nbs/01_nn.ipynb #c20268ef
+import jax
+import jax.numpy as jnp
 
 # %% ../nbs/01_nn.ipynb #de139071
 def make_linear(key, fan_in, fan_out, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, bias=True, act=True):
