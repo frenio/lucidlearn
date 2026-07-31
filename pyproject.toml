@@ -37,3 +37,4 @@ lib_path = "lucidlearn"
 nbs_path = "nbs"
 doc_host = "https://frenio.github.io/lucidlearn"
 doc_dir = "_docs"
+custom_readme = true
