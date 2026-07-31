@@ -21,12 +21,14 @@ Import using
 
 ``` python
 import lucidlearn.core as ll
+import lucidlearn.nn as nn
 ```
 
 or
 
 ```python
 from lucidlearn.core import *
+from lucidlearn.nn import *
 ```
 
 For coding examples see the [docs](https://frenio.github.io/lucidlearn/).
