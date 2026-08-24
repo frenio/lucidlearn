@@ -7,3 +7,8 @@ website:
   description: "A transparent, concise machine learning framework in JAX inspired by `miniai` from `fastai/course22p2` and optimized for efficient TPU usage."
   repo-branch: main
   repo-url: "https://github.com/frenio/lucidlearn"
+
+format-links:
+  - html
+  - format: commonmark
+    text: Markdown

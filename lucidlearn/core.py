@@ -312,7 +312,7 @@ class LossRecorderCB(Callback):
         plt.show()
 
 # %% ../nbs/00_core.ipynb #a68d2145
-class ProgressCB(ll.Callback):
+class ProgressCB(Callback):
     order = -2
     def __init__(self, n=50):
         self.n = n
