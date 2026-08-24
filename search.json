@@ -1,0 +1,112 @@
+[
+  {
+    "objectID": "core.html",
+    "href": "core.html",
+    "title": "core",
+    "section": "",
+    "text": "def chunks(x, sz):\n  for i in range(0, len(x), sz): yield x[i:i+sz]\n\ndef show_data(fashion_image, label=None, is_1d=False):\n    if isinstance(fashion_image, tuple):\n        fig, ax = plt.subplots(1, len(fashion_image), figsize=(9, 3))\n        for i, x in enumerate(fashion_image):\n            ax[i].imshow(x)\n            ax[i].axis('off');\n        plt.show()\n    else:\n        mpl.rcParams['image.cmap'] = 'gray'\n        if label is not None:\n            plt.title(f\"{idx_to_class[label.item()]}\")\n        if is_1d==True:\n            plt.imshow(list(chunks(fashion_image, 28)));\n        else:\n            plt.imshow(fashion_image);\n        plt.axis('off');",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "core.html#visualization-functions",
+    "href": "core.html#visualization-functions",
+    "title": "core",
+    "section": "",
+    "text": "def chunks(x, sz):\n  for i in range(0, len(x), sz): yield x[i:i+sz]\n\ndef show_data(fashion_image, label=None, is_1d=False):\n    if isinstance(fashion_image, tuple):\n        fig, ax = plt.subplots(1, len(fashion_image), figsize=(9, 3))\n        for i, x in enumerate(fashion_image):\n            ax[i].imshow(x)\n            ax[i].axis('off');\n        plt.show()\n    else:\n        mpl.rcParams['image.cmap'] = 'gray'\n        if label is not None:\n            plt.title(f\"{idx_to_class[label.item()]}\")\n        if is_1d==True:\n            plt.imshow(list(chunks(fashion_image, 28)));\n        else:\n            plt.imshow(fashion_image);\n        plt.axis('off');",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "core.html#load-fashion-mnist",
+    "href": "core.html#load-fashion-mnist",
+    "title": "core",
+    "section": "Load Fashion-MNIST",
+    "text": "Load Fashion-MNIST\n\ntrain_data = datasets.FashionMNIST(root=\"./data\", train=True, download=True, transform=transforms.ToTensor())\ntest_data = datasets.FashionMNIST(root=\"./data\", train=False, download=True, transform=transforms.ToTensor())\nx_train_all = train_data.data[:, None, :, :]/255\ny_train_all = train_data.targets\n\nrand_idx = torch.randperm(x_train_all.shape[0])\nx_train = x_train_all[rand_idx[:50_000]]\ntrain_mean = x_train.mean()\ntrain_std = x_train.std()\n\nx_train = jnp.array((x_train - train_mean) / train_std)\ny_train = jnp.array(y_train_all[rand_idx[:50_000]])\nx_valid = jnp.array((x_train_all[rand_idx[50_000:]] - train_mean) / train_std)\ny_valid = jnp.array(y_train_all[rand_idx[50_000:]])\nx_test = jnp.array((test_data.data[:, None, :, :]/255 - train_mean) / train_std)\ny_test = jnp.array(test_data.targets)\n\nx_train.shape, y_train.shape, x_valid.shape, y_valid.shape, x_test.shape, y_test.shape,\n\n((50000, 1, 28, 28),\n (50000,),\n (10000, 1, 28, 28),\n (10000,),\n (10000, 1, 28, 28),\n (10000,))\n\n\n\nidx_to_class = {value: key for key, value in train_data.class_to_idx.items()}\nnum_classes = len(idx_to_class)\nidx_to_class, num_classes\n\n({0: 'T-shirt/top',\n  1: 'Trouser',\n  2: 'Pullover',\n  3: 'Dress',\n  4: 'Coat',\n  5: 'Sandal',\n  6: 'Shirt',\n  7: 'Sneaker',\n  8: 'Bag',\n  9: 'Ankle boot'},\n 10)",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "core.html#dataloaders",
+    "href": "core.html#dataloaders",
+    "title": "core",
+    "section": "DataLoaders",
+    "text": "DataLoaders\n\nsource\n\nDataset\ndef Dataset(\n    x, y\n):\nCombines features and lables in a dataset.\n\ntrain_ds = Dataset(x_train, y_train)\nvalid_ds = Dataset(x_valid, y_valid)\ntest_ds = Dataset(x_test, y_test)\n\n\nshow_data(x_train[0].squeeze(), y_train[0])\n\n\n\n\n\n\n\n\n\nsource\n\n\nDataLoader\ndef DataLoader(\n    dataset, batch_size:int=32, drop_last:bool=False, shuffle:bool=True,\n    random_key:PRNGKeyArray=Array((), dtype=key&lt;fry&gt;) overlaying:\n[ 0 42]\n):\nReturns iterable batches from a dataset\n\ntest_train_ds = Dataset(x_train[:-1], y_train[:-1])\n\n\ntest_dataloader = DataLoader(test_train_ds, batch_size = 2)\ntest_generator = iter(test_dataloader)\nnext(test_generator)\n\n(Array([[[[-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          ...,\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199]]],\n \n \n        [[[-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          ...,\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199]]]], dtype=float32),\n Array([7, 0], dtype=int32))\n\n\n\nlen(test_dataloader)\n\n25000\n\n\n\ntest_dataloader = DataLoader(test_train_ds, batch_size = 2, drop_last=True)\ntest_generator = iter(test_dataloader)\nnext(test_generator)\n\n(Array([[[[-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          ...,\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199]]],\n \n \n        [[[-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          ...,\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199],\n          [-0.8108199, -0.8108199, -0.8108199, ..., -0.8108199,\n           -0.8108199, -0.8108199]]]], dtype=float32),\n Array([7, 0], dtype=int32))\n\n\n\nlen(test_dataloader)\n\n24999\n\n\n\nbs = 32\n\ntrain_dl = DataLoader(train_ds, batch_size=bs, shuffle=True)\nvalid_dl = DataLoader(valid_ds, batch_size=bs, shuffle=True)\ntest_dl = DataLoader(test_ds, batch_size=bs, shuffle=False)\n\n\nsource\n\n\nDataLoaders\ndef DataLoaders(\n    *dls\n):\nCombines training and validation data in a DataLoaders object that can be passed to a learner.\n\ndls = DataLoaders(train_dl, valid_dl)\ndls.train, dls.valid\n\n(&lt;__main__.DataLoader&gt;,\n &lt;__main__.DataLoader&gt;)\n\n\n\none_batch = next(iter(dls.train))[0]\none_batch.shape\n\n(32, 1, 28, 28)",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "core.html#learner-and-callbacks",
+    "href": "core.html#learner-and-callbacks",
+    "title": "core",
+    "section": "Learner and Callbacks",
+    "text": "Learner and Callbacks\n\nsource\n\nCancelEpochException\ndef CancelEpochException(\n    *args, **kwargs\n):\nCommon base class for all non-exit exceptions.\n\nsource\n\n\nCancelBatchException\ndef CancelBatchException(\n    *args, **kwargs\n):\nCommon base class for all non-exit exceptions.\n\nsource\n\n\nCancelFitException\ndef CancelFitException(\n    *args, **kwargs\n):\nCommon base class for all non-exit exceptions.\n\nsource\n\n\nwith_cbs\ndef with_cbs(\n    nm\n):\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nrun_cbs\ndef run_cbs(\n    cbs, method_nm, learn:NoneType=None\n):\nCall self as a function.\n\nsource\n\n\nLearner\ndef Learner(\n    model, params, dls:tuple=(0,), loss_func:function=softmax_cross_entropy_with_integer_labels, lr:float=0.001,\n    cbs:NoneType=None, opt:function=sgd\n):\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nCallback\ndef Callback(\n    *args, **kwargs\n):\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nDeviceParallelCB\ndef DeviceParallelCB(\n    preload_data:bool=False\n):\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\naccuracy\ndef accuracy(\n    preds, targs\n):\nCall self as a function.\n\nsource\n\n\nMetricsCB\ndef MetricsCB(\n    *ms, **metrics\n):\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nOneCycleCB\ndef OneCycleCB(\n    pct_start:float=0.3, div:int=25, final_div:float=10000.0\n):\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nLRRecorderCB\ndef LRRecorderCB():\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nLossRecorderCB\ndef LossRecorderCB():\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nProgressCB\ndef ProgressCB(\n    n:int=50\n):\nInitialize self. See help(type(self)) for accurate signature.",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "core.html#advanced-model-factory",
+    "href": "core.html#advanced-model-factory",
+    "title": "core",
+    "section": "Advanced Model Factory",
+    "text": "Advanced Model Factory\n\nLayer Functions\n\nsource\n\n\nmake_layernorm2d\ndef make_layernorm2d(\n    key, num_features, eps:float=1e-05, offset:bool=True, ndims:int=4\n):\nCall self as a function.\n\nsource\n\n\nmake_squeeze\ndef make_squeeze(\n    key, dims:NoneType=None\n):\nCall self as a function.\n\nsource\n\n\nmake_conv2d\ndef make_conv2d(\n    key, cho, chi, ks:tuple=(3, 3), padding:str='SAME', strides:tuple=(1, 1), act_fn:custom_jvp=relu,\n    initializer:function=he_normal, bias:bool=True, act:bool=True\n):\nCall self as a function.\n\nsource\n\n\nmake_linear\ndef make_linear(\n    key, fan_in, fan_out, act_fn:custom_jvp=relu, initializer:function=he_normal, bias:bool=True, act:bool=True\n):\nCall self as a function.\n\n\nModel Factory\n\nsource\n\n\nmake_model\ndef make_model(\n    key, model_dict, act_fn:custom_jvp=relu, bias:bool=True\n):\nCall self as a function.\n\nmodel_dict = {'Conv2d_1':    {'make_fn': make_conv2d,     'args': (8, 1),      'kwargs': {'strides': (2, 2), 'act': True}},\n              'LayerNorm_1': {'make_fn': make_layernorm2d,  'args': (8,),         'kwargs': {'ndims': 4}},\n              'Conv2d_2':    {'make_fn': make_conv2d,     'args': (16, 8),     'kwargs': {'strides': (2, 2), 'act': True}},\n              'LayerNorm_2': {'make_fn': make_layernorm2d,  'args': (16,),         'kwargs': {'ndims': 4}},\n              'Conv2d_3':    {'make_fn': make_conv2d,     'args': (32, 16),    'kwargs': {'padding': 'VALID', 'strides': (2, 2), 'act': True}},\n              'LayerNorm_3': {'make_fn': make_layernorm2d,  'args': (32,),         'kwargs': {'ndims': 4}},\n              'Conv2d_4':    {'make_fn': make_conv2d,     'args': (64, 32),    'kwargs': {'padding': 'VALID', 'strides': (1, 1), 'act': True}},\n              'LayerNorm_4': {'make_fn': make_layernorm2d,  'args': (64,),         'kwargs': {'ndims': 4}},\n              'Squeeze' :    {'make_fn': make_squeeze,    'args': (),          'kwargs': {'dims': (2, 3)}},\n              'Linear_1':    {'make_fn': make_linear,     'args': (64, num_classes), 'kwargs': {'act': False}}}\n\n\nparams, model = make_model(random_key, model_dict)\n\n\nsum(p.size for p in jax.tree_util.tree_leaves(params))\n\n25274\n\n\n\nmodel(params, one_batch).shape\n\n(32, 10)",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "core.html#training",
+    "href": "core.html#training",
+    "title": "core",
+    "section": "Training",
+    "text": "Training\n\ndls = DataLoaders(train_dl, valid_dl)\nparams, model = make_model(random_key, model_dict)\nmetrics = MetricsCB(accuracy)\nlr_rec = LRRecorderCB()\nloss_rec = LossRecorderCB()\ncbs = [DeviceParallelCB(), OneCycleCB(), metrics, lr_rec, loss_rec]\nlearn = Learner(model, params, dls, loss_func=optax.softmax_cross_entropy_with_integer_labels, lr=0.01, cbs=cbs, opt=optax.adamw)\n\n\nlearn.fit(5)\n\nEpoch       accuracy        loss    Mode\n----------------------------------------\n0             0.8136      0.5246   train\n0             0.8400      0.4363    eval\n1             0.8671      0.3640   train\n1             0.8663      0.3555    eval\n2             0.8870      0.3031   train\n2             0.8876      0.3147    eval\n3             0.9078      0.2482   train\n3             0.9021      0.2663    eval\n4             0.9287      0.1894   train\n4             0.9114      0.2489    eval\n\n\n\nloss_rec.plot()",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "nn.html",
+    "href": "nn.html",
+    "title": "nn",
+    "section": "",
+    "text": "source\n\nmake_property_predictor\ndef make_property_predictor(\n    key, d:int=512, ldmin:float=0.0031622776601683794, ldmax:float=1995.2623149688789, hidden_layer:int=512,\n    ffdim:int=512, nhead:int=32, nlayers:int=6, dout:int=10, act_fn:custom_jvp=relu, initializer:function=he_normal,\n    attention_backend:NoneType=None, block_size:int=128, bias:bool=True, mask_fn:function=mask_fn\n):\nCall self as a function.\n\nsource\n\n\nmake_spectrum_encoder\ndef make_spectrum_encoder(\n    key, d:int=512, ldmin:float=0.0031622776601683794, ldmax:float=1995.2623149688789, hidden_layer:int=512,\n    ffdim:int=512, nhead:int=32, nlayers:int=6, act_fn:custom_jvp=relu, initializer:function=he_normal,\n    attention_backend:NoneType=None, block_size:int=128, mask_fn:function=mask_fn\n):\nCall self as a function.\n\nsource\n\n\nmake_transformer_block\ndef make_transformer_block(\n    key, nembd, nhead, ffdim:NoneType=None, attention_backend:NoneType=None, block_size:int=128,\n    act_fn:custom_jvp=relu, initializer:function=he_normal, bias:bool=True\n):\nCall self as a function.\n\nsource\n\n\nmake_multi_head_attention\ndef make_multi_head_attention(\n    key, nembd, nhead, attention_backend:NoneType=None, block_size:int=128, initializer:function=he_normal\n):\nCall self as a function.\n\nsource\n\n\nblockwise_attention\ndef blockwise_attention(\n    q, k, v, mask:NoneType=None, block_size:int=128\n):\nq: (B, N, T, H), k: (B, N, T, H), v: (B, N, T, H)\n\nsource\n\n\nmask_fn\ndef mask_fn(\n    x\n):\nCall self as a function.\n\nsource\n\n\nmake_peak_embedding\ndef make_peak_embedding(\n    key, d:int=512, hidden_layer:int=512, ldmin:float=0.0031622776601683794, ldmax:float=1995.2623149688789,\n    act_fn:custom_jvp=relu, initializer:function=he_normal, bias:bool=True\n):\nCall self as a function.\n\nsource\n\n\nmake_sinusoidal_embedding\ndef make_sinusoidal_embedding(\n    d:int=512, ldmin:float=0.0031622776601683794, ldmax:float=1995.2623149688789\n):\nCall self as a function.\n\nsource\n\n\nmake_layernorm2d\ndef make_layernorm2d(\n    key, num_features, eps:float=1e-05, offset:bool=True, ndims:int=4\n):\nCall self as a function.\n\nsource\n\n\nmake_layernorm1d\ndef make_layernorm1d(\n    key, num_features, eps:float=1e-05, offset:bool=True\n):\nCall self as a function.\n\nsource\n\n\nmake_squeeze\ndef make_squeeze(\n    key, dims:NoneType=None\n):\nCall self as a function.\n\nsource\n\n\nmake_conv2d\ndef make_conv2d(\n    key, cho, chi, ks:tuple=(3, 3), padding:str='SAME', strides:tuple=(1, 1), act_fn:custom_jvp=relu,\n    initializer:function=he_normal, bias:bool=True, act:bool=True\n):\nCall self as a function.\n\nsource\n\n\nmake_linear\ndef make_linear(\n    key, fan_in, fan_out, act_fn:custom_jvp=relu, initializer:function=he_normal, bias:bool=True, act:bool=True\n):\nCall self as a function.",
+    "crumbs": [
+      "nn"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "lucidlearn",
+    "section": "",
+    "text": "Install latest from the GitHub repository:\n$ pip install git+https://github.com/frenio/lucidlearn.git\nor from pypi\n$ pip install lucidlearn",
+    "crumbs": [
+      "lucidlearn"
+    ]
+  },
+  {
+    "objectID": "index.html#installation",
+    "href": "index.html#installation",
+    "title": "lucidlearn",
+    "section": "",
+    "text": "Install latest from the GitHub repository:\n$ pip install git+https://github.com/frenio/lucidlearn.git\nor from pypi\n$ pip install lucidlearn",
+    "crumbs": [
+      "lucidlearn"
+    ]
+  },
+  {
+    "objectID": "index.html#how-to-use",
+    "href": "index.html#how-to-use",
+    "title": "lucidlearn",
+    "section": "How to use",
+    "text": "How to use\n\nimport lucidlearn.core as ll\nimport lucidlearn.nn as nn\n\n\nOther Imports\n\nimport jax\nimport jax.numpy as jnp\nfrom jax import random\nrandom_key = jax.random.key(42)\n\nimport optax\n\nimport torch\nfrom torchvision import datasets, transforms\n\n\n\nLoad Data (Fashion-MNIST)\n\ntrain_data = datasets.FashionMNIST(root=\"./data\", train=True, download=True, transform=transforms.ToTensor())\ntest_data = datasets.FashionMNIST(root=\"./data\", train=False, download=True, transform=transforms.ToTensor())\nx_train_all = train_data.data[:, None, :, :]/255\ny_train_all = train_data.targets\n\nrand_idx = torch.randperm(x_train_all.shape[0])\nx_train = x_train_all[rand_idx[:50_000]]\ntrain_mean = x_train.mean()\ntrain_std = x_train.std()\n\nx_train = jnp.array((x_train - train_mean) / train_std)\ny_train = jnp.array(y_train_all[rand_idx[:50_000]])\nx_valid = jnp.array((x_train_all[rand_idx[50_000:]] - train_mean) / train_std)\ny_valid = jnp.array(y_train_all[rand_idx[50_000:]])\nx_test = jnp.array((test_data.data[:, None, :, :]/255 - train_mean) / train_std)\ny_test = jnp.array(test_data.targets)\n\nx_train.shape, y_train.shape, x_valid.shape, y_valid.shape, x_test.shape, y_test.shape,\n\n((50000, 1, 28, 28),\n (50000,),\n (10000, 1, 28, 28),\n (10000,),\n (10000, 1, 28, 28),\n (10000,))\n\n\n\nidx_to_class = {value: key for key, value in train_data.class_to_idx.items()}\nnum_classes = len(idx_to_class)\nidx_to_class, num_classes\n\n({0: 'T-shirt/top',\n  1: 'Trouser',\n  2: 'Pullover',\n  3: 'Dress',\n  4: 'Coat',\n  5: 'Sandal',\n  6: 'Shirt',\n  7: 'Sneaker',\n  8: 'Bag',\n  9: 'Ankle boot'},\n 10)\n\n\n\n\nCreate DataLoaders\n\ntrain_ds = ll.Dataset(x_train, y_train)\nvalid_ds = ll.Dataset(x_valid, y_valid)\ntest_ds = ll.Dataset(x_test, y_test)\n\n\nbs = 32\n\ntrain_dl = ll.DataLoader(train_ds, batch_size=bs, shuffle=True)\nvalid_dl = ll.DataLoader(valid_ds, batch_size=bs, shuffle=True)\ntest_dl = ll.DataLoader(test_ds, batch_size=bs, shuffle=False)\n\n\ndls = ll.DataLoaders(train_dl, valid_dl)\n\n\none_batch = next(iter(dls.train))[0]\none_batch.shape\n\n(32, 1, 28, 28)\n\n\n\n\nDefine Model Dict and Build Model\n\nmodel_dict = {'Conv2d_1':    {'make_fn': nn.make_conv2d,     'args': (8, 1),      'kwargs': {'strides': (2, 2), 'act': True}},\n              'LayerNorm_1': {'make_fn': nn.make_layernorm2d,  'args': (8,),         'kwargs': {'ndims': 4}},\n              'Conv2d_2':    {'make_fn': nn.make_conv2d,     'args': (16, 8),     'kwargs': {'strides': (2, 2), 'act': True}},\n              'LayerNorm_2': {'make_fn': nn.make_layernorm2d,  'args': (16,),         'kwargs': {'ndims': 4}},\n              'Conv2d_3':    {'make_fn': nn.make_conv2d,     'args': (32, 16),    'kwargs': {'padding': 'VALID', 'strides': (2, 2), 'act': True}},\n              'LayerNorm_3': {'make_fn': nn.make_layernorm2d,  'args': (32,),         'kwargs': {'ndims': 4}},\n              'Conv2d_4':    {'make_fn': nn.make_conv2d,     'args': (64, 32),    'kwargs': {'padding': 'VALID', 'strides': (1, 1), 'act': True}},\n              'LayerNorm_4': {'make_fn': nn.make_layernorm2d,  'args': (64,),         'kwargs': {'ndims': 4}},\n              'Squeeze' :    {'make_fn': nn.make_squeeze,    'args': (),          'kwargs': {'dims': (2, 3)}},\n              'Linear_1':    {'make_fn': nn.make_linear,     'args': (64, num_classes), 'kwargs': {'act': False}}}\n\n\nparams, model = ll.make_model(random_key, model_dict)\n\n\nsum(p.size for p in jax.tree_util.tree_leaves(params))\n\n25274\n\n\n\nmodel(params, one_batch).shape\n\n(32, 10)\n\n\n\n\nTraining\n\nmetrics = ll.MetricsCB(ll.accuracy)\nlr_rec = ll.LRRecorderCB()\nloss_rec = ll.LossRecorderCB()\ncbs = [ll.DeviceParallelCB(), ll.OneCycleCB(), metrics, lr_rec, loss_rec]\nlearn = ll.Learner(model, params, dls, loss_func=optax.softmax_cross_entropy_with_integer_labels, lr=0.01, cbs=cbs, opt=optax.adamw)\n\n\nlearn.fit(5)\n\nEpoch       accuracy        loss    Mode\n----------------------------------------\n0             0.8130      0.5247   train\n0             0.8596      0.3827    eval\n1             0.8677      0.3623   train\n1             0.8817      0.3375    eval\n2             0.8913      0.2978   train\n2             0.8914      0.2952    eval\n3             0.9104      0.2413   train\n3             0.9054      0.2648    eval\n4             0.9327      0.1840   train\n4             0.9099      0.2552    eval\n\n\n\nloss_rec.plot()",
+    "crumbs": [
+      "lucidlearn"
+    ]
+  }
+]
