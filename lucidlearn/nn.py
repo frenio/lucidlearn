@@ -12,6 +12,9 @@ __all__ = ['make_linear', 'make_conv2d', 'make_squeeze', 'make_layernorm1d', 'ma
 # %% ../nbs/01_nn.ipynb #c20268ef
 import jax
 import jax.numpy as jnp
+from jax import random
+from functools import partial   # used in _flash_attn, blockwise
+from jax.experimental.pallas.ops.tpu.flash_attention import flash_attention, SegmentIds
 
 # %% ../nbs/01_nn.ipynb #de139071
 def make_linear(key, fan_in, fan_out, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, bias=True, act=True):
