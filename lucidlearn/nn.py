@@ -6,8 +6,8 @@ Docs: https://frenio.github.io/lucidlearn/nn.html.md"""
 
 # %% auto #0
 __all__ = ['make_linear', 'make_conv2d', 'make_squeeze', 'make_layernorm1d', 'make_layernorm2d', 'make_sinusoidal_embedding',
-           'make_peak_embedding', 'mask_fn', 'make_multi_head_attention', 'make_transformer_block',
-           'make_spectrum_encoder', 'make_property_predictor']
+           'make_peak_embedding', 'mask_fn', 'blockwise_attention', 'make_multi_head_attention',
+           'make_transformer_block', 'make_spectrum_encoder', 'make_property_predictor']
 
 # %% ../nbs/01_nn.ipynb #c20268ef
 import jax
@@ -117,7 +117,42 @@ def make_peak_embedding(key, d=512, hidden_layer=512, ldmin=10**(-2.5), ldmax=10
 
 def mask_fn(x): return x[..., 0] != 0.0
 
-def make_multi_head_attention(key, nembd, nhead, attention_backend=None, initializer=jax.nn.initializers.he_normal):
+def blockwise_attention(q, k, v, mask=None, block_size=128):
+    """q: (B, N, T, H), k: (B, N, T, H), v: (B, N, T, H)"""
+    B, N, T, H = q.shape
+    n_blocks = T // block_size  # T needs to be divisible by block_size
+
+    m = jnp.full((B, N, T), jnp.finfo(q.dtype).min)
+    l = jnp.zeros((B, N, T))
+    O = jnp.zeros((B, N, T, H))
+
+    def scan_fn(carry, block):
+        m, l, O = carry
+        if mask is not None: k_block, v_block, mask_block = block
+        else:k_block, v_block = block
+        w = q @ k_block.transpose(0, 1, 3, 2) / jnp.sqrt(H) # (B, N, T, block_size)
+        if mask is not None: w = jnp.where(mask_block[:, None, None, :], w, -jnp.inf)
+        m_j = jnp.where(w.max(axis=-1) == -jnp.inf, 0.0, w.max(axis=-1))
+        m_new = jnp.maximum(m, m_j)
+        alpha = jnp.exp(m - m_new)
+        l = l * alpha
+        O = O * alpha[..., None]
+        p = jnp.exp(w - m_new[..., None])
+        l_j = p.sum(axis=-1)
+        O_j = p @ v_block
+        l_new = l + l_j
+        O_new = O + O_j
+        return (m_new, l_new, O_new), None
+
+    k_blocks = k.reshape(B, N, n_blocks, block_size, H).transpose(2, 0, 1, 3, 4)
+    v_blocks = v.reshape(B, N, n_blocks, block_size, H).transpose(2, 0, 1, 3, 4)
+    if mask is not None:
+        mask_blocks = mask.reshape(B, n_blocks, block_size).transpose(1, 0, 2)
+        (m, l, O), _ = jax.lax.scan(scan_fn, (m, l, O), (k_blocks, v_blocks, mask_blocks))
+    else: (m, l, O), _ = jax.lax.scan(scan_fn, (m, l, O), (k_blocks, v_blocks))
+    return O / l[..., None]
+
+def make_multi_head_attention(key, nembd, nhead, attention_backend=None, block_size=128, initializer=jax.nn.initializers.he_normal):
     params = {}
     keys = random.split(key, 4)
     params["Q"], q_fn = make_linear(keys[0], nembd, nembd, initializer=initializer, bias=False, act=False)
@@ -125,22 +160,53 @@ def make_multi_head_attention(key, nembd, nhead, attention_backend=None, initial
     params["V"], v_fn = make_linear(keys[2], nembd, nembd, initializer=initializer,  bias=False, act=False)
     params["O"], o_fn = make_linear(keys[3], nembd, nembd, initializer=initializer,  bias=False, act=False)
 
+    @partial(jax.jit, static_argnames=('sm_scale', 'use_mask'))
+    def _flash_attn(q, k, v, mask, sm_scale, use_mask):
+        segment_ids = SegmentIds(q=mask, kv=mask) if use_mask else None
+        return flash_attention(q, k, v, segment_ids=segment_ids, sm_scale=sm_scale)
+        
     def multi_head_attention_fn(params, x, mask=None):
         B, T, C = x.shape
         H = nembd//nhead
         q = q_fn(params["Q"], x).reshape(B, T, nhead, H) # B, T, C --> B, T, N, H
         k = k_fn(params["K"], x).reshape(B, T, nhead, H) # B, T, C --> B, T, N, H
         v = v_fn(params["V"], x).reshape(B, T, nhead, H) # B, T, C --> B, T, N, H
-        o = o_fn(params["O"], jax.nn.dot_product_attention(q, k, v, mask=mask, implementation=attention_backend).reshape(B, T, C))
+        if attention_backend == 'cudnn':
+            if mask is not None: mask = jnp.broadcast_to(mask, (B, 1, T, T))
+            o_in = jax.nn.dot_product_attention(q.astype(jnp.bfloat16), k.astype(jnp.bfloat16), v.astype(jnp.bfloat16), mask=mask, implementation="cudnn").astype(jnp.float32).reshape(B, T, C)
+            o = o_fn(params["O"], o_in)
+        elif attention_backend == 'blockwise':
+            mask = mask.squeeze(axis=(1, 2)) if mask is not None else None
+            q = q.transpose(0, 2, 1, 3)
+            k = k.transpose(0, 2, 1, 3)
+            v = v.transpose(0, 2, 1, 3)
+            o = jax.checkpoint(partial(blockwise_attention, block_size=block_size))(q, k, v, mask)
+            o = o_fn(params["O"], o.transpose(0, 2, 1, 3).reshape(B, T, C))
+        elif attention_backend == 'tpu_flash':
+            mask = mask.squeeze(axis=(1, 2)).astype(jnp.int32) if mask is not None else None
+            q = q.transpose(0, 2, 1, 3)
+            k = k.transpose(0, 2, 1, 3)
+            v = v.transpose(0, 2, 1, 3)
+            use_mask = mask is not None
+            if not use_mask: mask = jnp.zeros((B, T), dtype=jnp.int32)
+            o_in = _flash_attn(q, k, v, mask, sm_scale=float(1 / (H ** 0.5)), use_mask=use_mask).transpose(0, 2, 1, 3).reshape(B, T, C)
+            o = o_fn(params["O"], o_in)
+        elif attention_backend == 'quantize_fp16':
+            q16, k16, v16 = q.astype(jnp.float16), k.astype(jnp.float16), v.astype(jnp.float16)
+            o = jax.checkpoint(partial(lambda q16, k16, v16, mask: o_fn(params["O"], jax.nn.dot_product_attention(q16, k16, v16, mask=mask, implementation='xla').astype(jnp.float32).reshape(B, T, C))))(q16, k16, v16, mask)
+        elif attention_backend == 'remat':
+            o = jax.checkpoint(partial(lambda q, k, v, mask: o_fn(params["O"], jax.nn.dot_product_attention(q, k, v, mask=mask, implementation='xla').reshape(B, T, C))))(q, k, v, mask)
+        else:
+            o = o_fn(params["O"], jax.nn.dot_product_attention(q, k, v, mask=mask, implementation=attention_backend).reshape(B, T, C))
         return o
     
     return params, multi_head_attention_fn
 
-def make_transformer_block(key, nembd, nhead, ffdim=None, attention_backend=None, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, bias=True):
+def make_transformer_block(key, nembd, nhead, ffdim=None, attention_backend=None, block_size=128, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, bias=True):
     params = {}
     keys = random.split(key, 3)
     ffdim = ffdim if ffdim else 4 * nembd
-    params["MultiHeadAttention"], mha_fn = make_multi_head_attention(keys[0], nembd, nhead, attention_backend=attention_backend, initializer=initializer)
+    params["MultiHeadAttention"], mha_fn = make_multi_head_attention(keys[0], nembd, nhead, attention_backend=attention_backend, block_size=block_size, initializer=initializer)
     params["LayerNorm_1"], ln1_fn = make_layernorm1d(None, num_features=nembd)
     params["LayerNorm_2"], ln2_fn = make_layernorm1d(None, num_features=nembd)
     params['Linear_1'], ffn1 = make_linear(keys[1], nembd, ffdim, act_fn=act_fn, initializer=initializer, bias=bias, act=True)
@@ -152,15 +218,15 @@ def make_transformer_block(key, nembd, nhead, ffdim=None, attention_backend=None
         return x
     
     return params, transformer_block_fn
-    
-def make_spectrum_encoder(key, d=512, ldmin=10**(-2.5), ldmax=10**(3.3), hidden_layer=512, ffdim=512, nhead=32, nlayers=6, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, attention_backend=None, mask_fn=mask_fn):
+
+def make_spectrum_encoder(key, d=512, ldmin=10**(-2.5), ldmax=10**(3.3), hidden_layer=512, ffdim=512, nhead=32, nlayers=6, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, attention_backend=None, block_size=128, mask_fn=mask_fn):
     params = {}
     key, pe_key = random.split(key)
     params["PeakEmbedding"], pe_fn = make_peak_embedding(pe_key, d=d, hidden_layer=hidden_layer, ldmin=ldmin, ldmax=ldmax, act_fn=act_fn, initializer=initializer)
     tb_param_list = []
     for i in range(nlayers):
         key, tb_key = random.split(key)
-        p, tb_fn = make_transformer_block(tb_key, d, nhead, ffdim=ffdim, act_fn=act_fn, initializer=initializer, attention_backend=attention_backend)
+        p, tb_fn = make_transformer_block(tb_key, d, nhead, ffdim=ffdim, act_fn=act_fn, initializer=initializer, attention_backend=attention_backend, block_size=block_size)
         tb_param_list.append(p)
     stacked = jax.tree.map(lambda *xs: jnp.stack(xs), *tb_param_list)
     params["TransformerBlocks"] = stacked
@@ -178,10 +244,10 @@ def make_spectrum_encoder(key, d=512, ldmin=10**(-2.5), ldmax=10**(3.3), hidden_
     
     return params, spectrum_encoder_fn
 
-def make_property_predictor(key, d=512, ldmin=10**(-2.5), ldmax=10**(3.3), hidden_layer=512, ffdim=512, nhead=32, nlayers=6, dout=10, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, attention_backend=None, bias=True, mask_fn=mask_fn):
+def make_property_predictor(key, d=512, ldmin=10**(-2.5), ldmax=10**(3.3), hidden_layer=512, ffdim=512, nhead=32, nlayers=6, dout=10, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, attention_backend=None, block_size=128, bias=True, mask_fn=mask_fn):
     params = {}
     keys = random.split(key, num=3)
-    params["SpectrumEncoder"], spectrum_encoder_fn = make_spectrum_encoder(keys[0], d=d, ldmin=ldmin, ldmax=ldmax, hidden_layer=hidden_layer, ffdim=ffdim, nhead=nhead, nlayers=nlayers, act_fn=act_fn, initializer=initializer, attention_backend=attention_backend, mask_fn=mask_fn)
+    params["SpectrumEncoder"], spectrum_encoder_fn = make_spectrum_encoder(keys[0], d=d, ldmin=ldmin, ldmax=ldmax, hidden_layer=hidden_layer, ffdim=ffdim, nhead=nhead, nlayers=nlayers, act_fn=act_fn, initializer=initializer, attention_backend=attention_backend, block_size=block_size, mask_fn=mask_fn)
     params['Linear_1'], ffn1 = make_linear(keys[1], d, hidden_layer, act_fn=act_fn, initializer=initializer, bias=bias, act=True)
     params['Linear_2'], ffn2 = make_linear(keys[2], hidden_layer, dout, act_fn=act_fn, initializer=initializer, bias=bias, act=False)
 

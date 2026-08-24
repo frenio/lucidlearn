@@ -7,12 +7,13 @@ Docs: https://frenio.github.io/lucidlearn/core.html.md"""
 # %% auto #0
 __all__ = ['random_key', 'Dataset', 'DataLoader', 'DataLoaders', 'CancelFitException', 'CancelBatchException',
            'CancelEpochException', 'with_cbs', 'run_cbs', 'Learner', 'Callback', 'DeviceParallelCB', 'accuracy',
-           'MetricsCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'make_linear', 'make_conv2d', 'make_squeeze',
-           'make_layernorm2d', 'make_model']
+           'MetricsCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'ProgressCB', 'make_linear', 'make_conv2d',
+           'make_squeeze', 'make_layernorm2d', 'make_model']
 
 # %% ../nbs/00_core.ipynb #06f81aed
 import jax
 import jax.numpy as jnp
+import time
 from jax import random
 from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
 random_key = jax.random.key(42)
@@ -309,6 +310,26 @@ class LossRecorderCB(Callback):
         plt.title("loss curves")
         plt.legend()
         plt.show()
+
+# %% ../nbs/00_core.ipynb #a68d2145
+class ProgressCB(ll.Callback):
+    order = -2
+    def __init__(self, n=50):
+        self.n = n
+    def before_fit(self, learn):
+        import time; self.t = time
+    def before_epoch(self, learn):
+        self.epoch_start = self.t.time()
+    def after_batch(self, learn):
+        if learn.iter % self.n != 0: return
+        total = len(learn.dl)
+        elapsed = self.t.time() - self.epoch_start
+        mode = "train" if learn.training else "eval"
+        pct = 100 * learn.iter / total
+        print(f"\r  {mode} {learn.iter:5d}/{total} ({pct:4.0f}%) {elapsed:6.0f}s  loss={learn.loss:.4f}",
+              end="", flush=True)
+    def after_epoch(self, learn):
+        print()
 
 # %% ../nbs/00_core.ipynb #c71dd745
 def make_linear(key, fan_in, fan_out, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, bias=True, act=True):
