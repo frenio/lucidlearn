@@ -7,8 +7,8 @@ Docs: https://frenio.github.io/lucidlearn/core.html.md"""
 # %% auto #0
 __all__ = ['random_key', 'Dataset', 'DataLoader', 'DataLoaders', 'CancelFitException', 'CancelBatchException',
            'CancelEpochException', 'with_cbs', 'run_cbs', 'Learner', 'Callback', 'DeviceParallelCB', 'accuracy',
-           'ProgressCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'make_linear', 'make_conv2d', 'make_squeeze',
-           'make_layernorm2d', 'make_model']
+           'MetricsCB', 'ProgressCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'make_linear', 'make_conv2d',
+           'make_squeeze', 'make_layernorm2d', 'make_model']
 
 # %% ../nbs/00_core.ipynb #06f81aed
 import jax
@@ -205,6 +205,46 @@ class DeviceParallelCB(Callback):
 def accuracy(preds, targs):
     accuracy = (jnp.argmax(preds, axis=-1)==targs).astype(jnp.float32).sum()/preds.shape[0]
     return accuracy
+
+# %% ../nbs/00_core.ipynb #1dcfa893
+class MetricsCB(Callback):
+    
+    def __init__(self, *ms, **metrics):
+        for m in ms: metrics[m.__name__] = m
+        self.metrics = metrics
+        self.values = {k: 0 for k in metrics.keys()}
+        self.values['loss'] = 0
+    
+    def before_fit(self, learn):
+        self.history = {f"Epoch {i}": {} for i in learn.epochs}
+        self.cols = list(self.values.keys())
+        learn.metric_fns = list(self.metrics.values())
+    
+    def after_loss(self, learn):
+        self.values['loss'] += learn.loss/len(learn.dl)
+        for i, m in enumerate(self.metrics):
+            self.values[m] += learn.metrics_results[i]/len(learn.dl)
+    
+    def after_epoch(self, learn):
+        if (learn.epoch == 0) & learn.training:
+            print("\r" + " " * 100 + "\r", end="")
+            print(f"{'Epoch':<8}" + "".join([f"{k:>12}" for k in self.values.keys()]) + f"{'Mode':>8}")
+            print("-" * (8 + 12 * len(self.values.keys()) + 8))
+        mode = "train" if learn.training else "eval"
+        print("\r" + " " * 100 + "\r", end="")
+        print(f"{learn.epoch:<8}" + "".join([f"{v.item():>12.4f}" for v in self.values.values()]) + f"{mode:>8}")
+        self.history[f"Epoch {learn.epoch}"][f"{mode}"] = self.values.copy()
+        self.values = {v:0 for v in self.values.keys()}
+
+    def to_table(self):
+        out = [f"{'Epoch':<8}" + "".join(f"{c:>12}" for c in self.cols) + f"{'Mode':>8}",
+               "-" * (16 + 12 * len(self.cols))]
+        for ep, modes in self.history.items():
+            for mode, vals in modes.items():
+                out.append(f"{ep.split()[-1]:<8}"
+                           + "".join(f"{vals[c].item():>12.4f}" for c in self.cols)
+                           + f"{mode:>8}")
+        return "\n".join(out)
 
 # %% ../nbs/00_core.ipynb #833a78be
 class ProgressCB(Callback):
