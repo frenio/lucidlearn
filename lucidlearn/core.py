@@ -7,8 +7,8 @@ Docs: https://frenio.github.io/lucidlearn/core.html.md"""
 # %% auto #0
 __all__ = ['random_key', 'Dataset', 'DataLoader', 'DataLoaders', 'CancelFitException', 'CancelBatchException',
            'CancelEpochException', 'with_cbs', 'run_cbs', 'Learner', 'Callback', 'DeviceParallelCB', 'accuracy',
-           'MetricsCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'ProgressCB', 'make_linear', 'make_conv2d',
-           'make_squeeze', 'make_layernorm2d', 'make_model']
+           'ProgressCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'make_linear', 'make_conv2d', 'make_squeeze',
+           'make_layernorm2d', 'make_model']
 
 # %% ../nbs/00_core.ipynb #06f81aed
 import jax
@@ -206,32 +206,23 @@ def accuracy(preds, targs):
     accuracy = (jnp.argmax(preds, axis=-1)==targs).astype(jnp.float32).sum()/preds.shape[0]
     return accuracy
 
-# %% ../nbs/00_core.ipynb #1dcfa893
-class MetricsCB(Callback):
-    
-    def __init__(self, *ms, **metrics):
-        for m in ms: metrics[m.__name__] = m
-        self.metrics = metrics
-        self.values = {k: 0 for k in metrics.keys()}
-        self.values['loss'] = 0
-    
+# %% ../nbs/00_core.ipynb #833a78be
+class ProgressCB(Callback):
+    order = -2
+    def __init__(self, n=50):
+        self.n = n
     def before_fit(self, learn):
-        self.history = {f"Epoch {i}": {} for i in learn.epochs}
-        learn.metric_fns = list(self.metrics.values())
-    
-    def after_loss(self, learn):
-        self.values['loss'] += learn.loss/len(learn.dl)
-        for i, m in enumerate(self.metrics):
-            self.values[m] += learn.metrics_results[i]/len(learn.dl)
-    
-    def after_epoch(self, learn):
-        if (learn.epoch == 0) & learn.training:
-            print(f"{'Epoch':<8}" + "".join([f"{k:>12}" for k in self.values.keys()]) + f"{'Mode':>8}")
-            print("-" * (8 + 12 * len(self.values.keys()) + 8))
+        import time; self.t = time
+    def before_epoch(self, learn):
+        self.epoch_start = self.t.time()
+    def after_batch(self, learn):
+        if learn.iter % self.n != 0: return
+        total = len(learn.dl)
+        elapsed = self.t.time() - self.epoch_start
         mode = "train" if learn.training else "eval"
-        print(f"{learn.epoch:<8}" + "".join([f"{v.item():>12.4f}" for v in self.values.values()]) + f"{mode:>8}")
-        self.history[f"Epoch {learn.epoch}"][f"{mode}"] = self.values.copy()
-        self.values = {v:0 for v in self.values.keys()}
+        pct = 100 * learn.iter / total
+        print(f"\r  {mode} {learn.iter:5d}/{total} ({pct:4.0f}%) {elapsed:6.0f}s  loss={learn.loss:.4f}",
+              end="", flush=True)
 
 # %% ../nbs/00_core.ipynb #8517cd37
 class OneCycleCB(Callback):
