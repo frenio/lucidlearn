@@ -34,8 +34,8 @@ def make_linear(key, fan_in, fan_out, act_fn=jax.nn.relu, initializer=jax.nn.ini
 def make_ffn(key, din, dout, hidden_layer=512, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, bias=True):
     params = {}
     keys = random.split(key, num=2)
-    params['Linear_1'], ffn1 = nn.make_linear(keys[0], din, hidden_layer, act_fn=act_fn, initializer=initializer, bias=bias, act=True)
-    params['Linear_2'], ffn2 = nn.make_linear(keys[1], hidden_layer, dout, act_fn=act_fn, initializer=initializer, bias=bias, act=False)
+    params['Linear_1'], ffn1 = make_linear(keys[0], din, hidden_layer, act_fn=act_fn, initializer=initializer, bias=bias, act=True)
+    params['Linear_2'], ffn2 = make_linear(keys[1], hidden_layer, dout, act_fn=act_fn, initializer=initializer, bias=bias, act=False)
 
     def ffn_fn(params, x):
         x = ffn2(params['Linear_2'], ffn1(params['Linear_1'], x))
