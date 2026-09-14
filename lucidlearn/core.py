@@ -7,8 +7,8 @@ Docs: https://frenio.github.io/lucidlearn/core.html.md"""
 # %% auto #0
 __all__ = ['random_key', 'Dataset', 'DataLoader', 'DataLoaders', 'CancelFitException', 'CancelBatchException',
            'CancelEpochException', 'with_cbs', 'run_cbs', 'Learner', 'Callback', 'DeviceParallelCB', 'accuracy',
-           'MetricsCB', 'ProgressCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'make_linear', 'make_conv2d',
-           'make_squeeze', 'make_layernorm2d', 'make_model']
+           'MetricsCB', 'ProgressCB', 'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'PredsCB', 'make_linear',
+           'make_conv2d', 'make_squeeze', 'make_layernorm2d', 'make_model']
 
 # %% ../nbs/00_core.ipynb #06f81aed
 import jax
@@ -361,6 +361,16 @@ class ProgressCB(Callback):
               end="", flush=True)
     def after_epoch(self, learn):
         print()
+
+# %% ../nbs/00_core.ipynb #9996c5dd
+class PredsCB(Callback):
+    def before_fit(self, learn):
+        self.all_preds = []
+    def after_batch(self, learn):
+        if not learn.training:
+            self.all_preds.append(learn.preds)
+    def after_fit(self, learn):
+        self.preds = jnp.concat(self.all_preds)
 
 # %% ../nbs/00_core.ipynb #c71dd745
 def make_linear(key, fan_in, fan_out, act_fn=jax.nn.relu, initializer=jax.nn.initializers.he_normal, bias=True, act=True):
