@@ -15,7 +15,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
 ]
-dependencies = ["jax", "optax", "torch", "torchvision", "torchmetrics", "matplotlib"]
+dependencies = ["jax", "optax", "matplotlib"]
+
+[project.optional-dependencies]
+dev = ["torch", "torchvision"]
 
 [project.urls]
 Repository = "https://github.com/frenio/lucidlearn"
