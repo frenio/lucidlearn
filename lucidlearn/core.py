@@ -7,7 +7,8 @@ Docs: https://frenio.github.io/lucidlearn/core.html.md"""
 # %% auto #0
 __all__ = ['n_parameters', 'list_layers', 'Dataset', 'DataLoader', 'DataLoaders', 'CancelFitException', 'CancelBatchException',
            'CancelEpochException', 'with_cbs', 'run_cbs', 'Learner', 'Callback', 'DeviceParallelCB', 'MetricsCB',
-           'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'ProgressCB', 'PredsCB', 'accuracy', 'cos_sim', 'make_model']
+           'OneCycleCB', 'LRRecorderCB', 'LossRecorderCB', 'ProgressCB', 'PredsCB', 'accuracy', 'cos_sim', 'split_key',
+           'make_model']
 
 # %% ../nbs/00_core.ipynb #06f81aed
 import jax
@@ -16,6 +17,7 @@ import time
 from jax import random
 from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
 
+import inspect
 import matplotlib.pyplot as plt
 
 import optax
@@ -106,7 +108,7 @@ def run_cbs(cbs, method_nm, learn=None):
 
 # %% ../nbs/00_core.ipynb #19b683dc
 class Learner():
-    def __init__(self, model, params, dls=(0,), loss_func=optax.softmax_cross_entropy_with_integer_labels, lr=0.001, cbs=None, opt=optax.sgd):
+    def __init__(self, model, params, dls=(0,), loss_func=optax.softmax_cross_entropy_with_integer_labels, lr=0.001, cbs=None, opt=optax.sgd, random_key=None):
         self._model = model
         self.params = params
         self.dls = dls
@@ -117,11 +119,13 @@ class Learner():
         self.opt_state = self.opt.init(params)
         self.metric_fns = []
         self.metrics_results = []
+        self.key = random.key(0) if random_key is None else random_key
+        self._model_takes_key = _takes_key(model)
         
     @partial(jax.jit, static_argnums=(0,))
-    def _train_step(self, params, x, y, opt_state, lr):
+    def _train_step(self, params, x, y, opt_state, lr, key):
         def model_loss(params, x, y):
-            y_pred = self._model(params, x)
+            y_pred = self._model(params, x, key=key) if self._model_takes_key else self._model(params, x)
             loss = self._loss_func(y_pred, y)
             return jnp.mean(loss), y_pred
         (loss, y_pred), grads = jax.value_and_grad(model_loss, has_aux=True)(params, x, y)
@@ -143,7 +147,8 @@ class Learner():
     @with_cbs('batch')
     def _one_batch(self):
         if self.training:
-            self.loss, self.params, self.preds, self.opt_state, self.metrics_results = self._train_step(self.params, self.batch[0], self.batch[1], self.opt_state, self.dyn_lr)
+            self.key, step_key = random.split(self.key)
+            self.loss, self.params, self.preds, self.opt_state, self.metrics_results = self._train_step(self.params, self.batch[0], self.batch[1], self.opt_state, self.dyn_lr, step_key)
             self.callback('after_loss')
         else:
             self.loss, self.preds, self.metrics_results = self._eval_step(self.params, self.batch[0], self.batch[1])
@@ -229,7 +234,8 @@ class MetricsCB(Callback):
         self.history[f"Epoch {learn.epoch}"][f"{mode}"] = self.values.copy()
         self.values = {v:0 for v in self.values.keys()}
 
-    def to_table(self):
+    def __repr__(self):
+        if not hasattr(self, 'history'): return "\n".join(self.metrics)
         out = [f"{'Epoch':<8}" + "".join(f"{c:>12}" for c in self.cols) + f"{'Mode':>8}",
                "-" * (16 + 12 * len(self.cols))]
         for ep, modes in self.history.items():
@@ -238,6 +244,15 @@ class MetricsCB(Callback):
                            + "".join(f"{vals[c].item():>12.4f}" for c in self.cols)
                            + f"{mode:>8}")
         return "\n".join(out)
+    
+    def _repr_markdown_(self):
+        if not hasattr(self, 'history'): return "\n".join(self.metrics)
+        hdr  = "| Epoch | " + " | ".join(self.cols) + " | Mode |"
+        sep  = "|" + "---|" * (len(self.cols) + 2)
+        rows = [f"| {ep.split()[-1]} | " + " | ".join(f"{vals[c].item():.4f}" for c in self.cols) + f" | {mode} |"
+                for ep, modes in self.history.items() for mode, vals in modes.items()]
+        return "\n".join([hdr, sep, *rows])
+
 
 # %% ../nbs/00_core.ipynb #8517cd37
 class OneCycleCB(Callback):
@@ -356,20 +371,32 @@ def cos_sim(p, y):
     q = jax.nn.sigmoid(p)
     return ((q * y).sum(-1) / (jnp.linalg.norm(q, axis=-1) * jnp.linalg.norm(y, axis=-1) + 1e-8)).mean()
 
+# %% ../nbs/00_core.ipynb #52946889
+def split_key(key, n):
+    "Split `key` into `n` keys, or return `n` Nones in eval mode."
+    return random.split(key, n) if key is not None else (None,) * n
+
+def _accepts(f, nm):
+    ps = inspect.signature(f).parameters
+    return nm in ps or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in ps.values())
+
 # %% ../nbs/00_core.ipynb #3ef01edf
-def make_model(key, model_dict, act_fn=jax.nn.relu, bias=True):
-    
-    all_params = {}
-    funcs = {}
-    keys = random.split(key, len(model_dict))
-    for i, k in enumerate(model_dict.keys()):
-        params, func = model_dict[k]['make_fn'](keys[i], *model_dict[k]['args'], **model_dict[k]['kwargs'])
-        all_params[k] = params
-        funcs[k] = func
-    
-    def model_fn(params, x):
-        for k, f in funcs.items():
-            x = f(params[k], x)
+def make_model(key, model_dict, **defaults):
+    "Compose `make_*` layers in `model_dict` into a single (params, fn) pair."
+    all_params,specs = {},[]
+    for k,kk in zip(model_dict, random.split(key, len(model_dict))):
+        spec = model_dict[k]
+        mk = spec['make_fn']
+        kw = {**{d:v for d,v in defaults.items() if _accepts(mk,d)}, **spec.get('kwargs',{})}
+        all_params[k],f = mk(kk, *spec.get('args',()), **kw)
+        specs.append((k, f, _accepts(f,'key'), _accepts(f,'mask')))
+
+    def model_fn(params, x, mask=None, key=None):
+        for (k,f,wk,wm),kk in zip(specs, split_key(key, len(specs))):
+            kw = {}
+            if wk: kw['key'] = kk
+            if wm and mask is not None: kw['mask'] = mask
+            x = f(params[k], x, **kw)
         return x
-    
+
     return all_params, model_fn
