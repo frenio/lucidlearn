@@ -106,6 +106,9 @@ def run_cbs(cbs, method_nm, learn=None):
         method = getattr(cb, method_nm, None)
         if method is not None: method(learn)
 
+# %% ../nbs/00_core.ipynb #32cbe0ee
+def _takes_key(f): return 'key' in inspect.signature(f).parameters
+
 # %% ../nbs/00_core.ipynb #19b683dc
 class Learner():
     def __init__(self, model, params, dls=(0,), loss_func=optax.softmax_cross_entropy_with_integer_labels, lr=0.001, cbs=None, opt=optax.sgd, random_key=None):
